@@ -1,4 +1,3 @@
-import sys
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation
@@ -7,12 +6,6 @@ import math
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
-
-def unitize(vec):
-    v = np.array(vec)
-    if np.linalg.norm(v) == 0:
-        return vec
-    return v / (np.linalg.norm(v))
 
 #Object class: self.pos() returns coords as list [x,y,t], self.vel() returns velocity vector [vx,vy]
 #Velocity vector is what a stationary observer at origin would measure, and is relative to c (so [0.5,0] is 0.5c in x dir.)
@@ -30,37 +23,6 @@ class Object:
         else:
             AllMovingObjects.append(self)
 
-    # relative velocity with some other object
-    def relv(self, otherobj):
-        vs = np.array(self.vel)
-        vo = np.array(otherobj.vel)
-        if np.dot(vs, vo) == np.dot(vs,vs):
-            return 0
-        term1 = 1/(self.g * (1 - np.dot(vs,vo)))
-        term2 = (self.g - 1) * (( np.dot(vs,vo) /np.dot(vs,vs))-1)
-        term3 = vo - vs + vs * term2
-        return np.array(term1 * term3)
-
-    # relative gamma factor with some other object
-    def relgam(self, otherobj):
-        rvx = self.relv(otherobj)[0]
-        rvy = self.relv(otherobj)[1]
-        # this prevents python from complaining about dividing by zero...
-        if (rvx**2 + rvy**2) == 1:
-            return 99999999999999999999999999999999999999999999999999
-        return 1/(math.sqrt(1-(rvx**2 + rvy**2)))
-
-
-def adjust_lightness(color, amount=0.5):
-    import matplotlib.colors as mc
-    import colorsys
-    try:
-        c = mc.cnames[color]
-    except:
-        c = color
-    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
-    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
-
 
 # Some stationary objects
 origin = Object([0,0,0],[0,0],"black","origin")
@@ -68,10 +30,6 @@ loc_1 = Object([10,10,0],[0,0],"red","loc_1")
 loc_2 = Object([-10,10,0],[0,0],"red","loc_2")
 loc_3 = Object([-10,-10,0],[0,0],"red","loc_3")
 loc_4 = Object([10,-10,0],[0,0],"red","loc_4")
-loc_5 = Object([0,10,0],[0,0],"red","loc_5")
-loc_6 = Object([0,-10,0],[0,0],"red","loc_6")
-loc_7 = Object([10,0,0],[0,0],"red","loc_7")
-loc_8 = Object([-10,0,0],[0,0],"red","loc_8")
 
 #some spaceships
 ship_1 = Object([-25,0,0],[0.99,0],"cyan","ship_1")
@@ -83,7 +41,11 @@ ship_4 = Object([0,10,0],[0,-0.4],"violet","ship_4")
 
 # Lorentz transform. Returns the boost matrix
 def LorentzTransform(vel):
-    vh = unitize(vel)
+    try:
+        vh = np.array(vel) / np.linalg.norm(np.array(vel))
+    except:
+        print("Lorentz Transform tried to divide by zero.")
+        quit()
     gam = 1/(math.sqrt(1- vel[0]**2 - vel[1]**2))
     #constructing boost matrix
     R1 = [(1+(gam - 1)*(vh[0]**2)),((gam-1)*(vh[0] * vh[1])), ((-1)*gam*vel[0])]
@@ -105,6 +67,7 @@ def boostWL(X,Y,T,vel):
     boostedpts = np.dot(LorentzTransform(vel),stackedpts)
     return boostedpts[0], boostedpts[1], boostedpts[2]
 
+# linearly interpolates between initial and final worldlines for animation
 interpedFrames = 40
 def interpolateWL(iX, iY, iT, fX, fY, fT):
     numInterps = interpedFrames
@@ -162,6 +125,7 @@ def PlotVisualHelpers(LineInfo, interpedFrames):
 StuffToPlot = AllMovingObjects
 StuffToPlot.append(origin)
 
+# manually animated each frame, since matplotlib's FuncAnimation was intended for 2d
 def PlayAnimation(perspective, interpedFrames):
     LineInfo = MakeWLS(StuffToPlot, perspective)
     for f in range(interpedFrames):
@@ -179,12 +143,10 @@ def PlayAnimation(perspective, interpedFrames):
         if f==0:
             plt.pause(1)
         else:
-            plt.pause(0.0001)
+            plt.pause(0.01)
 
 running = True
 def press(event):
-    print(event.key)
-    sys.stdout.flush()
     if event.key == '1':
         PlayAnimation(ship_1, interpedFrames)
     if event.key == '2':
@@ -199,7 +161,7 @@ def press(event):
 
 
 
-# cid=connection id, listens for key presses
+# listens for key presses
 cid = plt.gcf().canvas.mpl_connect('key_press_event', press)
 
 #event loop
