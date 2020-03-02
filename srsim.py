@@ -51,7 +51,6 @@ class Object:
         return 1/(math.sqrt(1-(rvx**2 + rvy**2)))
 
 
-# for making boosted worldlines darker than corresponding unboosted worldline, but sameish color
 def adjust_lightness(color, amount=0.5):
     import matplotlib.colors as mc
     import colorsys
@@ -94,7 +93,7 @@ def LorentzTransform(vel):
     return LTMatrix
 
 def generateWL(pos,vel):
-    tsamples = np.linspace(0,50,50)
+    tsamples = np.linspace(-20,50,50)
     xinit, yinit = pos[0], pos[1]
     vx, vy = vel[0], vel[1]
     xlist = [(xinit + vx * k) for k in tsamples]
@@ -106,8 +105,9 @@ def boostWL(X,Y,T,vel):
     boostedpts = np.dot(LorentzTransform(vel),stackedpts)
     return boostedpts[0], boostedpts[1], boostedpts[2]
 
+interpedFrames = 40
 def interpolateWL(iX, iY, iT, fX, fY, fT):
-    numInterps = 50
+    numInterps = interpedFrames
     XList, YList, TList = [], [], []
     for i in range(len(iX)):
         XPath = np.linspace(iX[i],fX[i],numInterps)
@@ -143,28 +143,35 @@ def MakeWLS(ALLOBJECTS, viewingObject, *argv):
     preWLX, preWLY, preWLT = generateWL([0,0], viewingObject.vel)
     postWLX, postWLY, postWLT = generateWL([0,0],[0,0])
     XPaths, YPaths, TPaths = interpolateWL(preWLX, preWLY, preWLT, postWLX, postWLY, postWLT)
-    LineList.append([XPaths,YPaths,TPaths,viewingObject.color, viewingObject.name])
+    LineList.append([XPaths,YPaths,TPaths,viewingObject.color,viewingObject.name])
     titleDataString = ", original position (" + str(viewingObject.pos[0]) + ", " + str(viewingObject.pos[1]) + "), velocity (" + str(viewingObject.vel[0]) + ", " + str(viewingObject.vel[1]) + ")"
     fig.suptitle("Worldlines from perspective of " + viewingObject.name + titleDataString)
+    # Output is indexed by [object][x, y, t, color, name][list of interp points for x,y,t, no sub arrays for color or name]
     return LineList 
 
 
-    
-StuffYouWannaPlot = AllMovingObjects
-# LineInfo is indexed by [object][x=0, y=1, t=2][list of interp points for x,y,t]
+# adds some things that make 3d easier to visualize
+def PlotVisualHelpers(LineInfo, interpedFrames):
+    x = np.arange(-20,20)
+    y = np.arange(-20,20)
+    X, Y = np.meshgrid(x,y)
+    Z = X*0
+    ax.plot_surface(X,Y,Z,alpha=0.6)
 
-interpedFrames=50
-def PlayAnimation(perspective):
-    LineInfo = MakeWLS(StuffYouWannaPlot, perspective)
-    while plt.waitforbuttonpress() != True:
-        continue
+    
+StuffToPlot = AllMovingObjects
+StuffToPlot.append(origin)
+
+def PlayAnimation(perspective, interpedFrames):
+    LineInfo = MakeWLS(StuffToPlot, perspective)
     for f in range(interpedFrames):
         plt.cla()
+        PlotVisualHelpers(LineInfo, interpedFrames)
         for obj in LineInfo:
             ax.plot(obj[0][f],obj[1][f],obj[2][f], color=obj[3],label=obj[4])
-        ax.set_xlim(-20,20)
-        ax.set_ylim(-20,20)
-        ax.set_zlim(-20,20)
+        ax.set_xlim(-30,30)
+        ax.set_ylim(-30,30)
+        ax.set_zlim(-20,30)
         ax.set_xlabel("X")
         ax.set_ylabel("Y")
         ax.set_zlabel("T")
@@ -172,20 +179,22 @@ def PlayAnimation(perspective):
         if f==0:
             plt.pause(1)
         else:
-            plt.pause(0.001)
+            plt.pause(0.0001)
 
+running = True
 def press(event):
     print(event.key)
     sys.stdout.flush()
     if event.key == '1':
-        PlayAnimation(ship_1)
+        PlayAnimation(ship_1, interpedFrames)
     if event.key == '2':
-        PlayAnimation(ship_2)
+        PlayAnimation(ship_2, interpedFrames)
     if event.key == '3':
-        PlayAnimation(ship_3)
+        PlayAnimation(ship_3, interpedFrames)
     if event.key == '4':
-        PlayAnimation(ship_4)
+        PlayAnimation(ship_4, interpedFrames)
     if event.key == 'q':
+        running = False
         quit()
 
 
@@ -194,8 +203,8 @@ def press(event):
 cid = plt.gcf().canvas.mpl_connect('key_press_event', press)
 
 #event loop
-PlayAnimation(ship_1)
-while True:
+PlayAnimation(ship_1, interpedFrames)
+while running == True:
     plt.waitforbuttonpress()
     
 
